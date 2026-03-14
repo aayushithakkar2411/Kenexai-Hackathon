@@ -1,18 +1,10 @@
-name: Docker Image CI
-
-on:
-  push:
-    branches: [ "main" ]
-
-jobs:
-
-  build:
-
-    runs-on: ubuntu-latest
-
-    steps:
-
-    - uses: actions/checkout@v4
-
-    - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag kenexai-hackathon:$(date +%s)
+services:
+  streamlit:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: kenexai-hackathon:latest
+    ports:
+      - "8501:8501"
+    environment:
+      - PYTHONUNBUFFERED=1

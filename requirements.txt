@@ -6,3 +6,6 @@ sqlalchemy
 plotly
 altair
 openpyxl
+python-dotenv
+huggingface-hub
+langchain-core
