@@ -1,0 +1,171 @@
+2026-03-15 02:52:05,110 | INFO | Discovered file batches this run: 1
+2026-03-15 02:52:05,110 | INFO | Pending batches: 1
+2026-03-15 02:52:05,110 | INFO | Processing batch: batch_20260314T212144Z_a46ec5b9
+2026-03-15 02:52:07,124 | INFO | Running command: E:\Kenexai-Hackathon-2k26\.venv\Scripts\python.exe E:\Kenexai-Hackathon-2k26\etl\transform.py --input-path E:\Kenexai-Hackathon-2k26\data\bronze_branch\batch_20260314T212144Z_a46ec5b9.csv --batch-id batch_20260314T212144Z_a46ec5b9 --append
+2026-03-15 02:52:07,682 | INFO | stdout: --- Initial Dataset Diagnostics ---
+Shape: (100, 20)
+Dtypes:
+CustomerID                       int64
+Churn                            int64
+Tenure                         float64
+PreferredLoginDevice            object
+CityTier                         int64
+WarehouseToHome                float64
+PreferredPaymentMode            object
+Gender                          object
+HourSpendOnApp                 float64
+NumberOfDeviceRegistered         int64
+PreferedOrderCat                object
+SatisfactionScore                int64
+MaritalStatus                   object
+NumberOfAddress                  int64
+Complain                         int64
+OrderAmountHikeFromlastYear    float64
+CouponUsed                     float64
+OrderCount                     float64
+DaySinceLastOrder              float64
+CashbackAmount                 float64
+dtype: object
+Missing values per column:
+CustomerID                     0
+Churn                          0
+Tenure                         5
+PreferredLoginDevice           0
+CityTier                       0
+WarehouseToHome                8
+PreferredPaymentMode           0
+Gender                         0
+HourSpendOnApp                 4
+NumberOfDeviceRegistered       0
+PreferedOrderCat               0
+SatisfactionScore              0
+MaritalStatus                  0
+NumberOfAddress                0
+Complain                       0
+OrderAmountHikeFromlastYear    5
+CouponUsed                     4
+OrderCount                     8
+DaySinceLastOrder              6
+CashbackAmount                 0
+dtype: int64
+
+Removed duplicate rows: 0
+Rows removed by outlier filtering: 0
+
+--- Cleaned Dataset Diagnostics ---
+Shape: (100, 20)
+Dtypes:
+CustomerID                       int64
+Churn                            int64
+Tenure                         float64
+PreferredLoginDevice            object
+CityTier                         int64
+WarehouseToHome                float64
+PreferredPaymentMode            object
+Gender                          object
+HourSpendOnApp                 float64
+NumberOfDeviceRegistered         int64
+PreferedOrderCat                object
+SatisfactionScore                int64
+MaritalStatus                   object
+NumberOfAddress                  int64
+Complain                         int64
+OrderAmountHikeFromlastYear    float64
+CouponUsed                     float64
+OrderCount                     float64
+DaySinceLastOrder              float64
+CashbackAmount                 float64
+dtype: object
+Missing values per column:
+CustomerID                     0
+Churn                          0
+Tenure                         0
+PreferredLoginDevice           0
+CityTier                       0
+WarehouseToHome                0
+PreferredPaymentMode           0
+Gender                         0
+HourSpendOnApp                 0
+NumberOfDeviceRegistered       0
+PreferedOrderCat               0
+SatisfactionScore              0
+MaritalStatus                  0
+NumberOfAddress                0
+Complain                       0
+OrderAmountHikeFromlastYear    0
+CouponUsed                     0
+OrderCount                     0
+DaySinceLastOrder              0
+CashbackAmount                 0
+dtype: int64
+
+Cleaned dataset saved successfully.
+Rows: 100
+Columns: 20
+Saved to DB: E:\Kenexai-Hackathon-2k26\data\silver\silver_layer.db
+Table name: silver_customer_churn_curated
+Batch ID: batch_20260314T212144Z_a46ec5b9
+2026-03-15 02:52:07,682 | WARNING | stderr: 2026-03-15 02:52:07,572 | INFO | etl.extract | Starting EXTRACT stage.
+2026-03-15 02:52:07,572 | INFO | etl.extract | Source path: E:\Kenexai-Hackathon-2k26\data\bronze_branch\batch_20260314T212144Z_a46ec5b9.csv
+2026-03-15 02:52:07,572 | INFO | etl.extract | Reading CSV source: E:\Kenexai-Hackathon-2k26\data\bronze_branch\batch_20260314T212144Z_a46ec5b9.csv
+2026-03-15 02:52:07,576 | INFO | etl.extract | Dataset loaded successfully with shape: rows=100, cols=20
+2026-03-15 02:52:07,576 | INFO | etl.extract | Column datatype inspection:
+2026-03-15 02:52:07,576 | INFO | etl.extract |   - CustomerID: int64
+2026-03-15 02:52:07,576 | INFO | etl.extract |   - Churn: int64
+2026-03-15 02:52:07,576 | INFO | etl.extract |   - Tenure: float64
+2026-03-15 02:52:07,576 | INFO | etl.extract |   - PreferredLoginDevice: object
+2026-03-15 02:52:07,576 | INFO | etl.extract |   - CityTier: int64
+2026-03-15 02:52:07,576 | INFO | etl.extract |   - WarehouseToHome: float64
+2026-03-15 02:52:07,576 | INFO | etl.extract |   - PreferredPaymentMode: object
+2026-03-15 02:52:07,576 | INFO | etl.extract |   - Gender: object
+2026-03-15 02:52:07,576 | INFO | etl.extract |   - HourSpendOnApp: float64
+2026-03-15 02:52:07,576 | INFO | etl.extract |   - NumberOfDeviceRegistered: int64
+2026-03-15 02:52:07,576 | INFO | etl.extract |   - PreferedOrderCat: object
+2026-03-15 02:52:07,576 | INFO | etl.extract |   - SatisfactionScore: int64
+2026-03-15 02:52:07,576 | INFO | etl.extract |   - MaritalStatus: object
+2026-03-15 02:52:07,576 | INFO | etl.extract |   - NumberOfAddress: int64
+2026-03-15 02:52:07,576 | INFO | etl.extract |   - Complain: int64
+2026-03-15 02:52:07,576 | INFO | etl.extract |   - OrderAmountHikeFromlastYear: float64
+2026-03-15 02:52:07,576 | INFO | etl.extract |   - CouponUsed: float64
+2026-03-15 02:52:07,576 | INFO | etl.extract |   - OrderCount: float64
+2026-03-15 02:52:07,576 | INFO | etl.extract |   - DaySinceLastOrder: float64
+2026-03-15 02:52:07,576 | INFO | etl.extract |   - CashbackAmount: float64
+2026-03-15 02:52:07,576 | INFO | etl.extract | Sample preview (first 5 rows):
+   CustomerID  Churn  Tenure  ... OrderCount  DaySinceLastOrder  CashbackAmount
+0       54332      1     1.0  ...        2.0                1.0          148.25
+1       51989      0    15.0  ...        1.0                3.0          152.31
+2       53444      0    13.0  ...        NaN                9.0          233.80
+3       54560      0     5.0  ...        4.0                3.0          147.18
+4       54899      0    13.0  ...        NaN                9.0          252.42
+
+[5 rows x 20 columns]
+2026-03-15 02:52:07,589 | INFO | etl.extract | EXTRACT stage completed successfully.
+2026-03-15 02:52:07,691 | INFO | Running command: E:\Kenexai-Hackathon-2k26\.venv\Scripts\python.exe E:\Kenexai-Hackathon-2k26\warehouse\build_warehouse.py
+2026-03-15 02:52:08,382 | WARNING | stderr: 2026-03-15 02:52:08,108 | INFO | warehouse.build_warehouse | Starting warehouse build process (Silver -> Gold).
+2026-03-15 02:52:08,140 | INFO | warehouse.build_warehouse | Loaded cleaned dataset from E:\Kenexai-Hackathon-2k26\data\silver\silver_layer.db (silver_customer_churn_curated)
+2026-03-15 02:52:08,140 | INFO | warehouse.build_warehouse | Input dataset shape: rows=5730, cols=22
+2026-03-15 02:52:08,158 | INFO | warehouse.build_warehouse | Building dimension tables.
+2026-03-15 02:52:08,172 | INFO | warehouse.build_warehouse | Created dim_customer_profile with 5630 rows
+2026-03-15 02:52:08,172 | INFO | warehouse.build_warehouse | Created dim_login_device with 2 rows
+2026-03-15 02:52:08,172 | INFO | warehouse.build_warehouse | Created dim_payment_method with 5 rows
+2026-03-15 02:52:08,172 | INFO | warehouse.build_warehouse | Created dim_order_category with 5 rows
+2026-03-15 02:52:08,172 | INFO | warehouse.build_warehouse | Created dim_customer_time_window with 439 rows
+2026-03-15 02:52:08,172 | INFO | warehouse.build_warehouse | Building fact table with surrogate-key references.
+2026-03-15 02:52:08,191 | INFO | warehouse.build_warehouse | Validation passed: fact row count and foreign keys are valid.
+2026-03-15 02:52:08,191 | INFO | warehouse.build_warehouse | Created fact_customer_churn_metrics with 5730 rows
+2026-03-15 02:52:08,191 | INFO | warehouse.build_warehouse | Saving Star Schema tables to SQLite database.
+2026-03-15 02:52:08,225 | INFO | warehouse.build_warehouse | Saved dim_customer_profile to SQLite with 5630 rows
+2026-03-15 02:52:08,241 | INFO | warehouse.build_warehouse | Saved dim_login_device to SQLite with 2 rows
+2026-03-15 02:52:08,258 | INFO | warehouse.build_warehouse | Saved dim_payment_method to SQLite with 5 rows
+2026-03-15 02:52:08,283 | INFO | warehouse.build_warehouse | Saved dim_order_category to SQLite with 5 rows
+2026-03-15 02:52:08,312 | INFO | warehouse.build_warehouse | Saved fact_customer_churn_metrics to SQLite with 5730 rows
+2026-03-15 02:52:08,324 | INFO | warehouse.build_warehouse | Saved dim_customer_time_window to SQLite with 439 rows
+2026-03-15 02:52:08,324 | INFO | warehouse.build_warehouse | Warehouse database saved at E:\Kenexai-Hackathon-2k26\data\gold\warehouse.db
+2026-03-15 02:52:08,324 | INFO | warehouse.build_warehouse | Warehouse build completed successfully.
+2026-03-15 02:52:08,390 | INFO | Running command: E:\Kenexai-Hackathon-2k26\.venv\Scripts\python.exe E:\Kenexai-Hackathon-2k26\ml\infer_batch.py --batch-id batch_20260314T212144Z_a46ec5b9
+2026-03-15 02:52:30,453 | INFO | stdout: Scored batch_id=batch_20260314T212144Z_a46ec5b9
+Prediction rows: 100
+Saved latest CSV: E:\Kenexai-Hackathon-2k26\data\gold\latest_batch_predictions.csv
+Saved DB table: fact_customer_churn_scoring_results
+2026-03-15 02:52:30,474 | INFO | Batch processed successfully: batch_20260314T212144Z_a46ec5b9
+2026-03-15 02:52:30,474 | INFO | Watcher run completed.
