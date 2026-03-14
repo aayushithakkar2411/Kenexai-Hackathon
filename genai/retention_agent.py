@@ -5,7 +5,7 @@ What this script does:
 2) Queries all churn-risk customers (where churn prediction = 1).
 3) Combines customer behavioral data with churn prediction results.
 4) Detects likely churn-risk signals from behavior features.
-5) Uses Hugging Face Inference API with Meta-Llama
+5) Uses LangChain + Hugging Face Inference API with Meta-Llama
    to generate:
    - short churn explanation
    - formal personalized retention message with incentive
@@ -19,6 +19,7 @@ Environment:
 
 from __future__ import annotations
 
+import ast
 import argparse
 import json
 import logging
@@ -33,6 +34,9 @@ from typing import Any
 import pandas as pd
 from dotenv import load_dotenv
 from huggingface_hub import InferenceClient
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnableLambda
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -45,7 +49,8 @@ DEFAULT_MAX_CUSTOMERS = 2
 
 SYSTEM_PROMPT = (
 	"You are a formal customer-retention analyst for an e-commerce company. "
-	"Use only the provided customer data and risk signals. Do not invent facts."
+	"Use only the provided customer data and risk signals. Do not invent facts. "
+	"Write in a natural, warm-professional tone that sounds human, not robotic."
 )
 
 USER_PROMPT_TEMPLATE = """
@@ -63,10 +68,11 @@ Generate output as STRICT JSON with exactly these keys:
 
 Rules:
 1) churn_explanation: 1-2 sentences, <= 45 words, formal, data-grounded.
-2) retention_message: 70-110 words, formal and personalized.
+2) retention_message: 50-60 words, friendly-formal, personalized, and natural.
 3) retention_message must include one concrete promotion/incentive.
 4) retention_message must include a clear call-to-action.
-5) Return JSON only. No markdown or extra keys.
+5) Avoid robotic/template phrases; write like a human relationship manager.
+6) Return JSON only. No markdown or extra keys.
 """.strip()
 
 
@@ -205,6 +211,109 @@ def create_hf_client(api_token: str, provider: str | None) -> InferenceClient:
 
 	logger.info("Using Hugging Face auto-routing provider selection.")
 	return InferenceClient(api_key=api_token)
+
+
+def map_langchain_role_to_hf_role(message_type: str) -> str:
+	"""Map LangChain message types to HF chat roles."""
+	if message_type == "system":
+		return "system"
+	if message_type == "ai":
+		return "assistant"
+	return "user"
+
+
+class RetentionGenerationChain:
+	"""Reusable LangChain wrapper around HF chat completions for retention generation."""
+
+	def __init__(
+		self,
+		client: InferenceClient,
+		model_id: str,
+		temperature: float,
+		max_new_tokens: int,
+	) -> None:
+		self.client = client
+		self.model_id = model_id
+		self.temperature = temperature
+		self.max_new_tokens = max_new_tokens
+		self.chain = self._build_chain()
+
+	def _build_chain(self):
+		prompt = ChatPromptTemplate.from_messages(
+			[
+				("system", SYSTEM_PROMPT),
+				("human", USER_PROMPT_TEMPLATE),
+			]
+		)
+
+		llm_runnable = RunnableLambda(self._invoke_hf_chat)
+		return prompt | llm_runnable | StrOutputParser()
+
+	def _invoke_hf_chat(self, prompt_value: Any) -> str:
+		if hasattr(prompt_value, "messages"):
+			messages = list(getattr(prompt_value, "messages"))
+		elif isinstance(prompt_value, list):
+			messages = prompt_value
+		else:
+			messages = [prompt_value]
+
+		hf_messages: list[dict[str, str]] = []
+		for message in messages:
+			if isinstance(message, tuple) and len(message) == 2 and message[0] == "messages":
+				nested_messages = message[1]
+				if isinstance(nested_messages, list):
+					messages.extend(nested_messages)
+				continue
+
+			message_type = str(getattr(message, "type", "human"))
+			raw_content = getattr(message, "content", "")
+			if isinstance(raw_content, list):
+				parts: list[str] = []
+				for part in raw_content:
+					if isinstance(part, dict):
+						text_part = part.get("text")
+						if text_part:
+							parts.append(str(text_part))
+					else:
+						parts.append(str(part))
+				message_content = "\n".join(parts).strip()
+			else:
+				message_content = str(raw_content).strip()
+
+			if not message_content:
+				continue
+
+			hf_messages.append(
+				{
+					"role": map_langchain_role_to_hf_role(message_type),
+					"content": message_content,
+				}
+			)
+
+		if not hf_messages:
+			raise ValueError("No valid chat messages were produced from the prompt.")
+
+		response = self.client.chat.completions.create(
+			model=self.model_id,
+			messages=hf_messages,
+			temperature=self.temperature,
+			max_tokens=self.max_new_tokens,
+		)
+
+		if response.choices and len(response.choices) > 0:
+			return str(response.choices[0].message.content or "")
+
+		return str(response)
+
+	def invoke(self, customer_profile: str, risk_signals: str) -> str:
+		return str(
+			self.chain.invoke(
+				{
+					"customer_profile": customer_profile,
+					"risk_signals": risk_signals,
+				}
+			)
+		)
 
 
 def connect_warehouse(db_path: Path) -> sqlite3.Connection:
@@ -415,26 +524,190 @@ def build_customer_profile(customer: pd.Series) -> str:
 	return "\n".join([f"- {k}: {v}" for k, v in profile_map.items()])
 
 
-def parse_json_from_text(raw_text: str) -> dict[str, Any]:
-	"""Extract and parse JSON object from model output."""
-	text = raw_text.strip()
+def clean_generated_text(raw_text: str) -> str:
+	"""Normalize model output text for downstream parsing."""
+	text = str(raw_text or "").strip()
+	text = re.sub(r"^\s*```(?:json)?\s*", "", text, flags=re.IGNORECASE).strip()
+	text = re.sub(r"\s*```\s*$", "", text).strip()
+	text = (
+		text.replace("“", '"')
+		.replace("”", '"')
+		.replace("’", "'")
+		.replace("‘", "'")
+	)
+	return text
 
-	# Remove fenced code block wrappers if present.
-	text = re.sub(r"^```(?:json)?", "", text).strip()
-	text = re.sub(r"```$", "", text).strip()
 
-	# Try direct parse first.
+def normalize_generated_payload(payload: dict[str, Any]) -> dict[str, str]:
+	"""Normalize parsed payload into exact required keys."""
+	normalized: dict[str, Any] = {}
+	for key, value in payload.items():
+		normalized_key = re.sub(r"[^a-z0-9]+", "_", str(key).lower()).strip("_")
+		normalized[normalized_key] = value
+
+	def pick_value(aliases: tuple[str, ...]) -> str:
+		for alias in aliases:
+			value = normalized.get(alias)
+			if value is None:
+				continue
+			value_text = re.sub(r"\s+", " ", str(value)).strip().strip('"').strip("'")
+			if value_text:
+				return value_text
+		return ""
+
+	explanation = pick_value(
+		(
+			"churn_explanation",
+			"churn_reason",
+			"churnreason",
+			"explanation",
+			"reason",
+		)
+	)
+	retention_message = pick_value(
+		(
+			"retention_message",
+			"retentionmessage",
+			"message",
+			"retention_offer",
+			"offer",
+		)
+	)
+
+	if not explanation or not retention_message:
+		raise ValueError("Model output JSON missing required keys or values.")
+
+	return {
+		"churn_explanation": explanation,
+		"retention_message": retention_message,
+	}
+
+
+def try_parse_json_like(text: str) -> dict[str, Any] | None:
+	"""Attempt parsing JSON-like object text into a dictionary."""
+	candidate = text.strip()
+	if not candidate:
+		return None
+
+	for attempt_text in (
+		candidate,
+		re.sub(r",\s*([}\]])", r"\1", candidate),
+	):
+		try:
+			parsed = json.loads(attempt_text)
+			if isinstance(parsed, dict):
+				return parsed
+		except json.JSONDecodeError:
+			pass
+
 	try:
-		return json.loads(text)
-	except json.JSONDecodeError:
+		parsed_literal = ast.literal_eval(candidate)
+		if isinstance(parsed_literal, dict):
+			return parsed_literal
+	except Exception:
 		pass
 
-	# Fallback: parse first JSON object in output.
-	match = re.search(r"\{.*\}", text, flags=re.DOTALL)
-	if not match:
-		raise ValueError("Model output did not contain valid JSON object.")
+	return None
 
-	return json.loads(match.group(0))
+
+def extract_balanced_json_objects(text: str) -> list[str]:
+	"""Extract balanced brace-delimited objects from text."""
+	objects: list[str] = []
+	depth = 0
+	start: int | None = None
+	in_string = False
+	string_quote = ""
+	escaped = False
+
+	for index, char in enumerate(text):
+		if escaped:
+			escaped = False
+			continue
+
+		if char == "\\":
+			escaped = True
+			continue
+
+		if in_string:
+			if char == string_quote:
+				in_string = False
+			continue
+
+		if char in ('"', "'"):
+			in_string = True
+			string_quote = char
+			continue
+
+		if char == "{":
+			if depth == 0:
+				start = index
+			depth += 1
+			continue
+
+		if char == "}" and depth > 0:
+			depth -= 1
+			if depth == 0 and start is not None:
+				objects.append(text[start : index + 1])
+				start = None
+
+	return objects
+
+
+def extract_fields_from_labeled_text(text: str) -> dict[str, str] | None:
+	"""Extract required fields from non-JSON labeled model output."""
+	explanation_match = re.search(
+		r"(?is)(?:churn[_\s-]*explanation|churn[_\s-]*reason|explanation)\s*[:\-]\s*(.+?)(?=(?:retention[_\s-]*message|retention[_\s-]*offer|message)\s*[:\-])",
+		text,
+	)
+	message_match = re.search(
+		r"(?is)(?:retention[_\s-]*message|retention[_\s-]*offer|message)\s*[:\-]\s*(.+)$",
+		text,
+	)
+
+	if not explanation_match or not message_match:
+		return None
+
+	explanation = re.sub(r"\s+", " ", explanation_match.group(1)).strip().strip('"').strip("'")
+	retention_message = re.sub(r"\s+", " ", message_match.group(1)).strip().strip('"').strip("'")
+
+	if not explanation or not retention_message:
+		return None
+
+	return {
+		"churn_explanation": explanation,
+		"retention_message": retention_message,
+	}
+
+
+def parse_json_from_text(raw_text: str) -> dict[str, Any]:
+	"""Extract and parse model output into required churn/message keys."""
+	text = clean_generated_text(raw_text)
+	if not text:
+		raise ValueError("Model output was empty.")
+
+	candidate_objects = [text, *extract_balanced_json_objects(text)]
+	seen_candidates: set[str] = set()
+
+	for candidate in candidate_objects:
+		candidate_text = candidate.strip()
+		if not candidate_text or candidate_text in seen_candidates:
+			continue
+		seen_candidates.add(candidate_text)
+
+		parsed_candidate = try_parse_json_like(candidate_text)
+		if not parsed_candidate:
+			continue
+
+		try:
+			return normalize_generated_payload(parsed_candidate)
+		except ValueError:
+			continue
+
+	labeled_fields = extract_fields_from_labeled_text(text)
+	if labeled_fields:
+		return labeled_fields
+
+	raise ValueError("Model output did not contain valid JSON object.")
 
 
 def build_fallback_explanation(risk_signals: list[str]) -> str:
@@ -451,11 +724,11 @@ def build_fallback_retention_message(customer: pd.Series, risk_signals: list[str
 	customer_id = normalize_value(customer.get("CustomerID"))
 	primary_signal = risk_signals[0] if risk_signals else "recent engagement decline"
 	return (
-		f"Dear Customer {customer_id}, we value your relationship with us and noticed "
-		f"{primary_signal.lower()}. As a goodwill gesture, we are pleased to offer you "
-		"an exclusive 15% discount and priority support on your next purchase. Please "
-		"use code STAY15 within the next 7 days. We would be honored to continue "
-		"serving you and improving your shopping experience."
+		f"Dear Customer {customer_id}, thank you for being with us. We noticed "
+		f"{primary_signal.lower()} and want to help you stay engaged. Enjoy a 15% "
+		"discount and priority support on your next purchase with code STAY15, valid "
+		"for 7 days. Please place your next order this week, and our team will "
+		"personally assist you."
 	)
 
 
@@ -468,6 +741,7 @@ def generate_customer_outputs(
 	initial_retry_delay: float,
 	customer: pd.Series,
 	risk_signals: list[str],
+	generation_chain: RetentionGenerationChain | None = None,
 ) -> tuple[str, str, str, str | None]:
 	"""Generate churn explanation and retention message for one customer.
 
@@ -476,24 +750,20 @@ def generate_customer_outputs(
 	"""
 	customer_profile = build_customer_profile(customer)
 	risk_signals_text = ", ".join(risk_signals)
-	user_prompt = USER_PROMPT_TEMPLATE.format(
-		customer_profile=customer_profile,
-		risk_signals=risk_signals_text,
+
+	active_chain = generation_chain or RetentionGenerationChain(
+		client=client,
+		model_id=model_id,
+		temperature=temperature,
+		max_new_tokens=max_new_tokens,
 	)
 
 	for attempt in range(max_retries + 1):
 		try:
-			response = client.chat.completions.create(
-				model=model_id,
-				messages=[
-					{"role": "system", "content": SYSTEM_PROMPT},
-					{"role": "user", "content": user_prompt},
-				],
-				temperature=temperature,
-				max_tokens=max_new_tokens,
+			content = active_chain.invoke(
+				customer_profile=customer_profile,
+				risk_signals=risk_signals_text,
 			)
-
-			content = response.choices[0].message.content if response.choices else ""
 			parsed = parse_json_from_text(content)
 
 			explanation = str(parsed.get("churn_explanation", "")).strip()
@@ -535,6 +805,13 @@ def generate_retention_results(
 	rows: list[dict[str, Any]] = []
 	total = len(customers_df)
 
+	shared_chain = RetentionGenerationChain(
+		client=client,
+		model_id=args.model_id,
+		temperature=args.temperature,
+		max_new_tokens=args.max_new_tokens,
+	)
+
 	for idx, (_, customer) in enumerate(customers_df.iterrows(), start=1):
 		customer_id = customer.get("CustomerID")
 		risk_signals = identify_risk_signals(customer)
@@ -548,6 +825,7 @@ def generate_retention_results(
 			initial_retry_delay=args.initial_retry_delay,
 			customer=customer,
 			risk_signals=risk_signals,
+			generation_chain=shared_chain,
 		)
 
 		rows.append(
