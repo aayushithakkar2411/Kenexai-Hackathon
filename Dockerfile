@@ -12,6 +12,6 @@ RUN pip install --no-cache-dir --upgrade pip \
 
 COPY . .
 
-EXPOSE 8501
+EXPOSE 8501 8515
 
 CMD ["streamlit", "run", "frontend/dashboard/app.py", "--server.address=0.0.0.0", "--server.port=8501"]

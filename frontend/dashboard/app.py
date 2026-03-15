@@ -6,6 +6,7 @@ import subprocess
 import sys
 import socket
 import time
+from urllib.parse import quote_plus
 
 import numpy as np
 import pandas as pd
@@ -79,6 +80,8 @@ def ensure_predict_app_running() -> str:
 			str(script_path),
 			"--server.headless",
 			"true",
+			"--server.address",
+			"0.0.0.0",
 			"--server.port",
 			str(port),
 		]
@@ -89,10 +92,18 @@ def ensure_predict_app_running() -> str:
 			stderr=subprocess.DEVNULL,
 		)
 		# Give Streamlit a short window to initialize before redirect.
-		time.sleep(1.2)
+		for _ in range(12):
+			if _is_port_open(port):
+				break
+			time.sleep(0.5)
+		if not _is_port_open(port):
+			raise RuntimeError(
+				f"Prediction app did not start on port {port}. If running in Docker, publish this port using '-p {port}:{port}'."
+			)
 
 	st.session_state["predict_app_port"] = port
-	return f"http://localhost:{port}"
+	dashboard_url = "http://localhost:8501"
+	return f"http://localhost:{port}/?dashboard_url={quote_plus(dashboard_url)}"
 
 
 def _run_command(command: list[str]) -> subprocess.CompletedProcess[str]:

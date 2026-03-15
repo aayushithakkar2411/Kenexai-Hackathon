@@ -285,14 +285,14 @@ def resolve_dashboard_url() -> str:
 		return str(query_params["dashboard_url"])
 
 	# Otherwise probe commonly used local dashboard ports.
-	for port in (8511, 8513, 8515):
+	for port in (8501, 8511, 8513, 8515):
 		with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
 			sock.settimeout(0.2)
 			if sock.connect_ex(("127.0.0.1", port)) == 0:
 				return f"http://localhost:{port}"
 
 	# Safe fallback.
-	return "http://localhost:8511"
+	return "http://localhost:8501"
 
 
 def main() -> None:
